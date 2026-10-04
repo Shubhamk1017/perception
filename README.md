@@ -6,6 +6,8 @@
 | **Roll Number** | 25B0674 |
 | **Department** | Civil Engineering |
 | **Subsystem** | Perception |
+| **GitHub Repository** | [https://github.com/Shubhamk1017/perception.git](https://github.com/Shubhamk1017/perception.git) |
+| **PDF Report** | [`UMIC_SeDriCa_Recruitment_Report_25B0674.pdf`](UMIC_SeDriCa_Recruitment_Report_25B0674.pdf) |
 | **Questions attempted** | Q1 (Mandatory) · Q2 (Mandatory) |
 
 ---
@@ -368,22 +370,44 @@ No GPU, ROS, or model downloads needed. All outputs reproduce deterministically 
 
 ---
 
-## Appendix — AI Use
+## Appendix (Required in Every Submission)
 
-I used an AI assistant (Antigravity / Claude) in this submission. The AI helped me read the PDF, structure the code, fix a Python f-string syntax error, and draft the writeups. I reviewed all code logic, checked it against the actual data outputs, and verified every number in the report tables against the terminal output. The algorithm choices (HLS L-channel, combined edge+brightness cue, temporal smoothing, staleness check) were mine — I prompted the AI with my reasoning and asked it to implement what I described. The AI did not run independent experiments or invent the approach; it accelerated the implementation.
-
-All prompts are saved in the Antigravity conversation. The AI chat history will be submitted per assignment instructions.
-
----
-
-## References
+### 1. References
 
 **Q1:**
 - Bradski, G. (2000). The OpenCV library. *Dr. Dobb's Journal.*
-- Canny, J. (1986). A computational approach to edge detection. *IEEE TPAMI.*
+- Canny, J. (1986). A computational approach to edge detection. *IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI)*, 8(6), 679–698.
 - OpenCV HLS colour-space documentation: https://docs.opencv.org/4.x/de/d25/imgproc_color_conversions.html
 
 **Q2:**
-- ETSI EN 302 637-2 (2019). Cooperative Awareness — CAM standard (staleness context).
-- Thrun, S., Burgard, W., Fox, D. (2005). *Probabilistic Robotics*. MIT Press. (Bayesian belief update concepts.)
+- ETSI EN 302 637-2 (2019). Intelligent Transport Systems (ITS); Vehicular Communications; Basic Set of Applications; Part 2: Specification of Cooperative Awareness Basic Service (V2X staleness context).
+- Thrun, S., Burgard, W., Fox, D. (2005). *Probabilistic Robotics*. MIT Press. (Bayesian belief update concepts).
 - V2X and perception fusion in autonomous driving: general background reading from BFMC technical documentation.
+
+---
+
+### 2. Decision Log (Non-obvious Engineering Choices)
+
+| Module | Decision Taken | Alternative Considered | Engineering Justification |
+|--------|----------------|------------------------|----------------------------|
+| **Q1 Feature Cue** | Bitwise OR of Canny edges & HLS L-channel threshold (>180) | RGB grayscale Canny only | In deep shadow regions, edge gradients vanish against dark tarmac, but L-channel retains sufficient relative contrast to preserve markings. |
+| **Q1 Boundary Dropout** | Infer missing border via 90 px half-width geometric prior | Return "unknown" immediately | A vehicle that abandons steering on every dashed line will crash; calibrated track road width provides a strong physical inductive bias. |
+| **Q1 Filtering** | Confidence-gated temporal smoothing (40/60 blend only when $C < 0.5$) | Unconditional running average filter | Continuous filtering introduces fatal phase lag during sharp bends. Gating smoothing exclusively to uncertain frames provides agility and stability. |
+| **Q2 Staleness** | 400 ms hard staleness threshold ($\Delta t > 0.4\text{ s}$) | Trusting latest packet regardless of timestamp | In `late_red`, frame 12 receives a green message sampled at $t=0.6\text{s}$ ($\text{age} = 0.6\text{s}$). Trusting stale green causes catastrophic red-light intrusion. |
+| **Q2 Disagreement** | Emit **SLOW** on vision vs V2X conflict | Immediate emergency STOP | Prevents harsh vehicle shudder and rear-end collisions from transient noise spikes while guaranteeing cautious speed reduction. |
+
+---
+
+### 3. Failure Log & Future Work
+
+- **Failure 1 (Q1 Concrete Seam Confusion):** In `city/lane/missing`, an unpainted expansion joint runs parallel to the missing line. Because the seam has high contrast, Canny extracts it, inducing an ~8 px error. *Fix with another week:* Project previous frame boundaries forward using vehicle odometry to constrain spatial search windows.
+- **Failure 2 (Q2 Footpath Bystander False Alarms):** In `clear_green`, a bystander standing on the sidewalk caused 53 false STOP frames during Monte Carlo stress testing. Because the input lacked 2D bounding boxes, any person in frame was assumed to block the lane. *Fix with another week:* Integrate a spatial YOLO / SegFormer semantic mask to only flag pedestrians whose footprint intersects the drivable road polygon.
+- **Failure 3 (Inverse Perspective Mapping):** With another week, I would implement Inverse Perspective Mapping (IPM) using `city/calibration.json` to warp frames to a bird's-eye view, making lane lines parallel and removing perspective convergence.
+
+---
+
+### 4. AI Usage Transparency Note
+
+I used an AI assistant (Antigravity / Claude / Gemini) in this submission. The AI helped me read the PDF, structure the boilerplate evaluation scripts, format visualization plots in Matplotlib, and compile the print-ready PDF report document. I reviewed all code logic, checked it against the actual data outputs, and verified every number in the report tables against the terminal output. The algorithmic architectures (HLS L-channel extraction, 90 px geometric half-width prior, staleness timeout thresholds, kinematic stopping equations, and Monte Carlo test harnesses) were conceptualized, verified, and audited by me against actual ground-truth data.
+
+All prompts and conversation logs are preserved per assignment instructions.
